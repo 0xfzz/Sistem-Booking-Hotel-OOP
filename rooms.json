@@ -9,5 +9,18 @@
         "checkin_time": null,
         "nights": 0,
         "guest_name": ""
+    },
+    {
+        "room_number": "123",
+        "room_type": "Deluxe",
+        "price": 120000.0,
+        "amenities": [
+            "Kulkas"
+        ],
+        "max_occupancy": 4,
+        "is_available": true,
+        "checkin_time": null,
+        "nights": 0,
+        "guest_name": ""
     }
 ]

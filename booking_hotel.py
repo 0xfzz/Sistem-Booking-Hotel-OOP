@@ -345,6 +345,22 @@ class ModernHotelBookingApp:
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
+        # Delete room button
+        def delete_room():
+            selected_item = tree.selection()
+            if selected_item:
+                room_number = tree.item(selected_item)['values'][0]
+                self.admin.remove_room(room_number)
+                tree.delete(selected_item)
+                messagebox.showinfo("Success", f"Kamar {room_number} berhasil dihapus.")
+            else:
+                messagebox.showerror("Error", "Pilih kamar yang ingin dihapus.")
+        
+        ttk.Button(self.content_frame,
+                  text="Hapus Kamar",
+                  style='Primary.TButton',
+                  command=delete_room).pack(pady=10)
+        
         # Back button
         ttk.Button(self.content_frame,
                   text="Kembali",
