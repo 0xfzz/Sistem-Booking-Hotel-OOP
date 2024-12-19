@@ -1,0 +1,13 @@
+[
+    {
+        "room_number": "12",
+        "room_type": "test",
+        "price": 123.0,
+        "amenities": [],
+        "max_occupancy": 12,
+        "is_available": true,
+        "checkin_time": null,
+        "nights": 0,
+        "guest_name": ""
+    }
+]
