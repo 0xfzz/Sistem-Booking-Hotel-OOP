@@ -11,11 +11,11 @@ from reportlab.lib.units import inch
 import os
 from ttkthemes import ThemedTk
 
+# Base Room Class
 class Room:
-    def __init__(self, room_number, room_type, price, amenities=None, max_occupancy=2, 
+    def __init__(self, room_number, price, amenities=None, max_occupancy=2, 
                  is_available=True, checkin_time=None, nights=0, guest_name=""):
         self.room_number = room_number
-        self.room_type = room_type
         self.price = price
         self.amenities = amenities or []
         self.max_occupancy = max_occupancy
@@ -38,11 +38,15 @@ class Room:
         self.checkin_time = None
         self.nights = 0
         self.guest_name = ""
+        
+    def calculate_price(self):
+        """Base price calculation method"""
+        return self.price * self.nights
 
     def to_dict(self):
         return {
             'room_number': self.room_number,
-            'room_type': self.room_type,
+            'room_type': self.__class__.__name__,
             'price': self.price,
             'amenities': self.amenities,
             'max_occupancy': self.max_occupancy,
@@ -54,9 +58,14 @@ class Room:
 
     @staticmethod
     def from_dict(data):
-        room = Room(
+        room_types = {
+            'StandardRoom': StandardRoom,
+            'DeluxeRoom': DeluxeRoom,
+            'SuiteRoom': SuiteRoom
+        }
+        room_class = room_types.get(data['room_type'], Room)
+        return room_class(
             room_number=data['room_number'],
-            room_type=data['room_type'],
             price=data['price'],
             amenities=data.get('amenities', []),
             max_occupancy=data.get('max_occupancy', 2),
@@ -64,22 +73,89 @@ class Room:
             checkin_time=data['checkin_time'],
             nights=data['nights']
         )
-        room.guest_name = data.get('guest_name', '')
-        return room
 
+# Inherited Room Classes
+class StandardRoom(Room):
+    def __init__(self, room_number, price, **kwargs):
+        super().__init__(room_number, price, **kwargs)
+        self.amenities.extend(['TV', 'AC', 'WiFi'])
+        self.room_type = "Standard"
+        self.max_occupancy = 2
+
+    def calculate_price(self):
+        """Override price calculation for standard room"""
+        base_price = super().calculate_price()
+        # No additional charges for standard room
+        return base_price
+
+class DeluxeRoom(Room):
+    def __init__(self, room_number, price, **kwargs):
+        super().__init__(room_number, price, **kwargs)
+        self.amenities.extend(['TV', 'AC', 'WiFi', 'Mini Bar', 'City View'])
+        self.room_type = "Deluxe"
+        self.max_occupancy = 3
+
+    def calculate_price(self):
+        """Override price calculation for deluxe room"""
+        base_price = super().calculate_price()
+        # Add 10% service charge for deluxe rooms
+        service_charge = base_price * 0.10
+        return base_price + service_charge
+
+class SuiteRoom(Room):
+    def __init__(self, room_number, price, **kwargs):
+        super().__init__(room_number, price, **kwargs)
+        self.amenities.extend(['TV', 'AC', 'WiFi', 'Mini Bar', 'City View', 
+                             'Living Room', 'Kitchen', 'Jacuzzi'])
+        self.room_type = "Suite"
+        self.max_occupancy = 4
+        
+    def book_room(self, nights, guest_name):
+        """Override booking method for suite rooms"""
+        if super().book_room(nights, guest_name):
+            # Additional VIP treatment for suite rooms
+            self.arrange_vip_welcome()
+            return True
+        return False
+    
+    def arrange_vip_welcome(self):
+        """Special method for suite rooms"""
+        self.amenities.append('Welcome Champagne')
+        self.amenities.append('Fruit Basket')
+
+    def calculate_price(self):
+        """Override price calculation for suite room"""
+        base_price = super().calculate_price()
+        # Add 15% service charge and additional amenities fee
+        service_charge = base_price * 0.15
+        amenities_fee = 500000  # Fixed fee for extra amenities
+        return base_price + service_charge + amenities_fee
+
+# Modified Admin class to handle room types
 class Admin:
     def __init__(self):
         self.rooms = []
 
-    def add_room(self, room):
-        self.rooms.append(room)
+    def add_room(self, room_type, room_number, price, **kwargs):
+        room_classes = {
+            'Standard': StandardRoom,
+            'Deluxe': DeluxeRoom,
+            'Suite': SuiteRoom
+        }
+        
+        room_class = room_classes.get(room_type)
+        if room_class:
+            room = room_class(room_number, price, **kwargs)
+            self.rooms.append(room)
+            return True
+        return False
 
     def remove_room(self, room_number):
         self.rooms = [room for room in self.rooms if room.room_number != room_number]
 
     def get_room_by_number(self, room_number):
         for room in self.rooms:
-            if room.room_number == room_number:
+            if int(room.room_number) == int(room_number):
                 return room
         return None
 
@@ -156,6 +232,7 @@ class ModernHotelBookingApp:
         # Handle close event
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
+
     def create_header(self):
         header_frame = ttk.Frame(self.main_container)
         header_frame.pack(fill=tk.X, pady=(0, 20))
@@ -182,22 +259,27 @@ class ModernHotelBookingApp:
         
         # Welcome message
         ttk.Label(menu_frame,
-             text="Selamat Datang di Hotel CG",
-             font=('Helvetica', 20, 'bold')).pack(pady=20)
+            text="Selamat Datang di Hotel CG",
+            font=('Helvetica', 20, 'bold')).pack(pady=20)
         
         # Menu buttons
         buttons_frame = ttk.Frame(menu_frame)
         buttons_frame.pack(pady=20)
         
         ttk.Button(buttons_frame,
-              text="Panel Admin",
-              style='Primary.TButton',
-              command=self.show_admin_panel).pack(pady=10)
+            text="Panel Admin",
+            style='Primary.TButton',
+            command=self.show_admin_panel).pack(pady=10)
         
         ttk.Button(buttons_frame,
-              text="Panel Pelanggan",
-              style='Primary.TButton',
-              command=self.show_customer_panel).pack(pady=10)
+            text="Panel Pelanggan",
+            style='Primary.TButton',
+            command=self.show_customer_panel).pack(pady=10)
+        
+        ttk.Button(buttons_frame,
+            text="Customer Checkout",
+            style='Primary.TButton',
+            command=self.show_customer_checkout).pack(pady=10)
 
     def show_admin_panel(self):
         self.clear_content()
@@ -233,7 +315,169 @@ class ModernHotelBookingApp:
                                                 column=i%3,
                                                 padx=10,
                                                 pady=5)
+    def show_customer_checkout(self):
+        self.clear_content()
+        
+        checkout_frame = ttk.Frame(self.content_frame)
+        checkout_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Create treeview for occupied rooms
+        columns = ('Nomor Kamar', 'Jenis', 'Tamu', 'Check-in', 'Malam', 'Total Biaya')
+        tree = ttk.Treeview(checkout_frame, columns=columns, show='headings')
+        
+        # Set column headings
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=100)
+        
+        # Add data for occupied rooms only
+        for room in self.admin.rooms:
+            if not room.is_available:
+                total_cost = room.calculate_price()
+                checkin = room.checkin_time.strftime('%Y-%m-%d %H:%M') if room.checkin_time else "-"
+                tree.insert('', tk.END, values=(
+                    room.room_number,
+                    room.room_type,
+                    room.guest_name,
+                    checkin,
+                    room.nights,
+                    f"Rp{total_cost:,.2f}"
+                ))
+        
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(checkout_frame, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack everything
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        def process_checkout():
+            selected_item = tree.selection()
+            if not selected_item:
+                messagebox.showerror("Error", "Pilih kamar untuk checkout")
+                return
+                
+            room_number = tree.item(selected_item)['values'][0]
+            room = self.admin.get_room_by_number(room_number)
+            print(room)
+            if room:
+                # Calculate final bill
+                total_cost = room.calculate_price()
+                checkout_time = datetime.now()
+                duration = checkout_time - room.checkin_time
+                
+                # Show confirmation dialog with bill details
+                confirm = messagebox.askyesno(
+                    "Konfirmasi Checkout",
+                    f"Detail Checkout:\n\n"
+                    f"Kamar: {room.room_number} ({room.room_type})\n"
+                    f"Tamu: {room.guest_name}\n"
+                    f"Check-in: {room.checkin_time.strftime('%Y-%m-%d %H:%M')}\n"
+                    f"Check-out: {checkout_time.strftime('%Y-%m-%d %H:%M')}\n"
+                    f"Durasi: {room.nights} malam\n"
+                    f"Total Biaya: Rp{total_cost:,.2f}\n\n"
+                    "Lanjutkan checkout?"
+                )
+                
+                if confirm:
+                    # Generate checkout receipt
+                    self.generate_checkout_receipt(room, checkout_time, total_cost)
+                    
+                    # Release the room
+                    room.release_room()
+                    
+                    # Remove from treeview
+                    tree.delete(selected_item)
+                    
+                    messagebox.showinfo("Success", "Checkout berhasil!")
+        
+        # Add checkout button
+        ttk.Button(self.content_frame,
+                text="Process Checkout",
+                style='Primary.TButton',
+                command=process_checkout).pack(pady=10)
+        
+        # Back button
+        ttk.Button(self.content_frame,
+                text="Kembali",
+                style='Primary.TButton',
+                command=self.show_main_menu).pack(pady=10)
 
+    def generate_checkout_receipt(self, room, checkout_time, total_cost):
+        if not os.path.exists('receipts'):
+            os.makedirs('receipts')
+            
+        filename = f"receipts/Hotel_CG_Checkout_{room.room_number}_{checkout_time.strftime('%Y%m%d_%H%M%S')}.pdf"
+        doc = SimpleDocTemplate(filename, pagesize=letter)
+        
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(
+            name='CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            spaceAfter=30
+        ))
+        
+        elements = []
+        
+        # Header
+        elements.append(Paragraph("Hotel CG", styles['CustomTitle']))
+        elements.append(Paragraph("Checkout Receipt", styles['Heading2']))
+        elements.append(Spacer(1, 20))
+        
+        # Receipt details
+        receipt_data = [
+            ['Receipt Number:', f'RCP-{room.room_number}-{checkout_time.strftime("%Y%m%d%H%M")}'],
+            ['Checkout Date:', checkout_time.strftime('%Y-%m-%d %H:%M')],
+            ['Room Number:', room.room_number],
+            ['Room Type:', room.room_type],
+            ['Guest Name:', room.guest_name],
+            ['Check-in:', room.checkin_time.strftime('%Y-%m-%d %H:%M')],
+            ['Check-out:', checkout_time.strftime('%Y-%m-%d %H:%M')],
+            ['Duration:', f'{room.nights} nights'],
+            ['Base Rate:', f'Rp{room.price:,.2f} per night'],
+        ]
+        
+        t = Table(receipt_data, colWidths=[2*inch, 4*inch])
+        t.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+            ('FONTSIZE', (0,0), (-1,-1), 10),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 12),
+        ]))
+        elements.append(t)
+        elements.append(Spacer(1, 20))
+        
+        # Charges breakdown
+        base_price = room.price * room.nights
+        additional_charges = total_cost - base_price
+        
+        charges_data = [
+            ['Base Charges:', f'Rp{base_price:,.2f}'],
+            ['Additional Charges:', f'Rp{additional_charges:,.2f}'],
+            ['Total Amount:', f'Rp{total_cost:,.2f}']
+        ]
+        
+        t = Table(charges_data, colWidths=[2*inch, 4*inch])
+        t.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+            ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,-1), 12),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 12),
+            ('LINEABOVE', (0,-1), (-1,-1), 1, colors.black),
+            ('LINEBELOW', (0,-1), (-1,-1), 1, colors.black),
+        ]))
+        elements.append(t)
+        
+        # Thank you message
+        elements.append(Spacer(1, 30))
+        elements.append(Paragraph("Thank you for staying at Hotel CG!", styles['Heading3']))
+        elements.append(Paragraph("We hope to see you again soon.", styles['Normal']))
+        
+        # Build PDF
+        doc.build(elements)
+        messagebox.showinfo("Receipt Generated", f"Checkout receipt has been saved to {filename}")
     def show_room_management(self, parent_frame):
         room_frame = ttk.LabelFrame(parent_frame, text="Manajemen Kamar")
         room_frame.pack(fill=tk.BOTH, expand=True, pady=10, padx=5)
@@ -246,29 +490,35 @@ class ModernHotelBookingApp:
         details_frame = ttk.Frame(form_frame)
         details_frame.pack(side=tk.LEFT, padx=10)
         
+        # Room Type Selection
+        ttk.Label(details_frame, text="Jenis Kamar:").grid(row=0, column=0, padx=5, pady=2)
+        self.room_type_var = tk.StringVar(value="Standard")
+        room_type_combo = ttk.Combobox(details_frame, 
+                                     textvariable=self.room_type_var,
+                                     values=["Standard", "Deluxe", "Suite"])
+        room_type_combo.grid(row=0, column=1, padx=5, pady=2)
+        
         fields = [
             ('Nomor Kamar:', 'room_number'),
-            ('Jenis Kamar:', 'room_type'),
             ('Harga:', 'price'),
-            ('Maksimal Orang:', 'max_occupancy')
         ]
         
         self.room_entries = {}
-        for i, (label, key) in enumerate(fields):
+        for i, (label, key) in enumerate(fields, start=1):
             ttk.Label(details_frame, text=label).grid(row=i, column=0, padx=5, pady=2)
             entry = ttk.Entry(details_frame)
             entry.grid(row=i, column=1, padx=5, pady=2)
             self.room_entries[key] = entry
         
-        # Amenities
+        # Additional Amenities (optional)
         amenities_frame = ttk.Frame(form_frame)
         amenities_frame.pack(side=tk.LEFT, padx=10)
         
-        ttk.Label(amenities_frame, text="Fasilitas:").pack()
+        ttk.Label(amenities_frame, text="Fasilitas Tambahan:").pack()
         self.amenities_text = tk.Text(amenities_frame, height=4, width=30)
         self.amenities_text.pack()
         ttk.Label(amenities_frame,
-                 text="Masukkan fasilitas yang dipisahkan dengan koma").pack()
+                 text="Masukkan fasilitas tambahan yang dipisahkan dengan koma").pack()
         
         # Buttons
         buttons_frame = ttk.Frame(room_frame)
@@ -287,27 +537,26 @@ class ModernHotelBookingApp:
     def add_room(self):
         try:
             room_number = self.room_entries['room_number'].get()
-            room_type = self.room_entries['room_type'].get()
             price = float(self.room_entries['price'].get())
-            max_occupancy = int(self.room_entries['max_occupancy'].get())
-            amenities = [a.strip() for a in self.amenities_text.get("1.0", tk.END).split(',') if a.strip()]
+            room_type = self.room_type_var.get()
+            additional_amenities = [a.strip() for a in self.amenities_text.get("1.0", tk.END).split(',') if a.strip()]
             
-            if not all([room_number, room_type, price > 0, max_occupancy > 0]):
+            if not all([room_number, price > 0, room_type]):
                 raise ValueError("All fields are required and must be valid.")
             
-            room = Room(room_number, room_type, price, amenities, max_occupancy)
-            self.admin.add_room(room)
-            
-            messagebox.showinfo("Success",
-                              f"Kamar {room_number} sukses ditambahkan!")
-            
-            # Clear entries
-            for entry in self.room_entries.values():
-                entry.delete(0, tk.END)
-            self.amenities_text.delete("1.0", tk.END)
+            if self.admin.add_room(room_type, room_number, price, amenities=additional_amenities):
+                messagebox.showinfo("Success", f"Kamar {room_number} ({room_type}) sukses ditambahkan!")
+                
+                # Clear entries
+                for entry in self.room_entries.values():
+                    entry.delete(0, tk.END)
+                self.amenities_text.delete("1.0", tk.END)
+            else:
+                messagebox.showerror("Error", "Invalid room type")
             
         except ValueError as e:
             messagebox.showerror("Error", str(e))
+
 
     def view_rooms_admin(self):
         self.clear_content()
@@ -316,13 +565,16 @@ class ModernHotelBookingApp:
         rooms_frame.pack(fill=tk.BOTH, expand=True)
         
         # Create treeview
-        columns = ('Nomor Kamar', 'Jenis', 'Harga', 'Status', 'Tamu', 'Check-in')
+        columns = ('Nomor Kamar', 'Jenis', 'Harga', 'Status', 'Tamu', 'Check-in', 'Fasilitas')
         tree = ttk.Treeview(rooms_frame, columns=columns, show='headings')
         
         # Set column headings
         for col in columns:
             tree.heading(col, text=col)
             tree.column(col, width=100)
+        
+        # Adjust facilities column width
+        tree.column('Fasilitas', width=200)
         
         # Add data
         for room in self.admin.rooms:
@@ -334,7 +586,8 @@ class ModernHotelBookingApp:
                 f"Rp{room.price:,.2f}",
                 status,
                 room.guest_name or "-",
-                checkin
+                checkin,
+                ', '.join(room.amenities)
             ))
         
         # Add scrollbar
@@ -344,22 +597,6 @@ class ModernHotelBookingApp:
         # Pack everything
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # Delete room button
-        def delete_room():
-            selected_item = tree.selection()
-            if selected_item:
-                room_number = tree.item(selected_item)['values'][0]
-                self.admin.remove_room(room_number)
-                tree.delete(selected_item)
-                messagebox.showinfo("Success", f"Kamar {room_number} berhasil dihapus.")
-            else:
-                messagebox.showerror("Error", "Pilih kamar yang ingin dihapus.")
-        
-        ttk.Button(self.content_frame,
-                  text="Hapus Kamar",
-                  style='Primary.TButton',
-                  command=delete_room).pack(pady=10)
         
         # Back button
         ttk.Button(self.content_frame,
@@ -461,70 +698,64 @@ class ModernHotelBookingApp:
 
     def show_booking_form(self, room):
         booking_window = tk.Toplevel(self.root)
-        booking_window.title(f"Booking Kamar {room.room_number}")
-        booking_window.geometry("500x600")
+        booking_window.title(f"Booking {room.room_type} Room {room.room_number}")
+        booking_window.geometry("500x700")
         
-        # Style the window
         form_frame = ttk.Frame(booking_window)
         form_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
         # Room details
         ttk.Label(form_frame,
-                 text=f"Detail Booking - Kkamar {room.room_number}",
+                 text=f"Booking Details - {room.room_type} Room {room.room_number}",
                  font=('Helvetica', 16, 'bold')).pack(pady=10)
         
         details_text = f"""
-Jenis Kamar: {room.room_type}
-Harga per malam: Rp{room.price:,.2f}
-Maksimal Orang: {room.max_occupancy} Orang
-Fasilitas: {', '.join(room.amenities)}
-        """
+Type: {room.room_type} Room
+Price per night: Rp{room.price:,.2f}
+Maximum Occupancy: {room.max_occupancy} Persons
+Amenities: {', '.join(room.amenities)}
+"""
         ttk.Label(form_frame,
                  text=details_text,
                  justify=tk.LEFT).pack(pady=10)
         
-        # Guest details
-        guest_frame = ttk.LabelFrame(form_frame, text="Informasi Tamu")
+        # Guest details form
+        guest_frame = ttk.LabelFrame(form_frame, text="Guest Information")
         guest_frame.pack(fill=tk.X, pady=10)
         
-        ttk.Label(guest_frame, text="Nama Lengkap:").pack(anchor="w", padx=5)
-        name_entry = ttk.Entry(guest_frame)
-        name_entry.pack(fill=tk.X, padx=5, pady=5)
+        fields = [
+            ('Full Name:', 'name'),
+            ('Email:', 'email'),
+            ('Phone:', 'phone'),
+            ('Number of Nights:', 'nights')
+        ]
         
-        ttk.Label(guest_frame, text="Email:").pack(anchor="w", padx=5)
-        email_entry = ttk.Entry(guest_frame)
-        email_entry.pack(fill=tk.X, padx=5, pady=5)
-        
-        ttk.Label(guest_frame, text="No HP:").pack(anchor="w", padx=5)
-        phone_entry = ttk.Entry(guest_frame)
-        phone_entry.pack(fill=tk.X, padx=5, pady=5)
-        
-        # Booking details
-        booking_details_frame = ttk.LabelFrame(form_frame, text="Detail Booking")
-        booking_details_frame.pack(fill=tk.X, pady=10)
-        
-        ttk.Label(booking_details_frame, text="Jumlah Malam:").pack(anchor="w", padx=5)
-        nights_entry = ttk.Entry(booking_details_frame)
-        nights_entry.pack(fill=tk.X, padx=5, pady=5)
+        entries = {}
+        for label, key in fields:
+            frame = ttk.Frame(guest_frame)
+            frame.pack(fill=tk.X, pady=5)
+            ttk.Label(frame, text=label).pack(side=tk.LEFT, padx=5)
+            entry = ttk.Entry(frame)
+            entry.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=5)
+            entries[key] = entry
         
         # Special requests
-        ttk.Label(booking_details_frame, text="Requests Tambahan:").pack(anchor="w", padx=5)
-        requests_text = tk.Text(booking_details_frame, height=4)
+        ttk.Label(guest_frame, text="Special Requests:").pack(anchor="w", padx=5)
+        requests_text = tk.Text(guest_frame, height=4)
         requests_text.pack(fill=tk.X, padx=5, pady=5)
         
         def confirm_booking():
             try:
-                guest_name = name_entry.get().strip()
-                email = email_entry.get().strip()
-                phone = phone_entry.get().strip()
-                nights = int(nights_entry.get())
+                guest_name = entries['name'].get().strip()
+                email = entries['email'].get().strip()
+                phone = entries['phone'].get().strip()
+                nights = int(entries['nights'].get())
                 special_requests = requests_text.get("1.0", tk.END).strip()
                 
                 if not all([guest_name, email, phone, nights > 0]):
                     raise ValueError("Please fill in all required fields.")
                 
                 if room.book_room(nights, guest_name):
-                    # Generate and save invoice
                     self.generate_modern_invoice(room, {
                         'guest_name': guest_name,
                         'email': email,
@@ -532,31 +763,27 @@ Fasilitas: {', '.join(room.amenities)}
                         'special_requests': special_requests
                     })
                     
-                    messagebox.showinfo("Success",
-                                      f"Kamar {room.room_number} sukses dibooking untuk {nights} malam!")
                     booking_window.destroy()
                     self.show_customer_panel()
                 else:
-                    messagebox.showerror("Error", "Kamar sudah tidak tersedia.")
+                    messagebox.showerror("Error", "Room is no longer available.")
                     
             except ValueError as e:
                 messagebox.showerror("Error", str(e))
         
-        # Confirm button
         ttk.Button(form_frame,
-                  text="Konfirmasi Booking",
+                  text="Confirm Booking",
                   style='Primary.TButton',
                   command=confirm_booking).pack(pady=20)
 
+
     def generate_modern_invoice(self, room, guest_details):
-        # Create directory for invoices if it doesn't exist
         if not os.path.exists('invoices'):
             os.makedirs('invoices')
             
         filename = f"invoices/Hotel_CG_Invoice_{room.room_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         doc = SimpleDocTemplate(filename, pagesize=letter)
         
-        # Styles
         styles = getSampleStyleSheet()
         styles.add(ParagraphStyle(
             name='CustomTitle',
@@ -564,19 +791,12 @@ Fasilitas: {', '.join(room.amenities)}
             fontSize=24,
             spaceAfter=30
         ))
-        styles.add(ParagraphStyle(
-            name='SubTitle',
-            parent=styles['Heading2'],
-            fontSize=16,
-            spaceAfter=20
-        ))
         
-        # Content elements
         elements = []
         
-        # Logo and header
+        # Header
         elements.append(Paragraph("Hotel CG", styles['CustomTitle']))
-        elements.append(Paragraph("Luxury Accommodation", styles['SubTitle']))
+        elements.append(Paragraph(f"{room.room_type} Room Invoice", styles['Heading2']))
         elements.append(Spacer(1, 20))
         
         # Invoice details
@@ -584,7 +804,8 @@ Fasilitas: {', '.join(room.amenities)}
             ['Tanggal Faktur:', datetime.now().strftime('%Y-%m-%d %H:%M')],
             ['Nomor Faktur:', f'INV-{room.room_number}-{datetime.now().strftime("%Y%m%d%H%M")}'],
             ['Nomor Kamar:', room.room_number],
-            ['Jenis Kamar:', room.room_type]
+            ['Jenis Kamar:', room.room_type],
+            ['Fasilitas:', ', '.join(room.amenities)]
         ]
         
         t = Table(invoice_data, colWidths=[2*inch, 4*inch])
@@ -597,50 +818,29 @@ Fasilitas: {', '.join(room.amenities)}
         elements.append(t)
         elements.append(Spacer(1, 20))
         
-        # Guest information
-        elements.append(Paragraph("Informasi Tamu", styles['Heading3']))
-        guest_data = [
-            ['Nama Tamu:', guest_details['guest_name']],
-            ['Email:', guest_details['email']],
-            ['No HP:', guest_details['phone']]
+        # Pricing details
+        base_price = room.price * room.nights
+        total_price = room.calculate_price()
+        additional_charges = total_price - base_price
+        
+        pricing_data = [
+            ['Base Price:', f'Rp{base_price:,.2f}'],
+            ['Additional Charges:', f'Rp{additional_charges:,.2f}'],
+            ['Total Price:', f'Rp{total_price:,.2f}']
         ]
         
-        t = Table(guest_data, colWidths=[2*inch, 4*inch])
+        t = Table(pricing_data, colWidths=[2*inch, 4*inch])
         t.setStyle(TableStyle([
             ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+            ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
             ('FONTSIZE', (0,0), (-1,-1), 10),
             ('BOTTOMPADDING', (0,0), (-1,-1), 12),
-        ]))
-        elements.append(t)
-        elements.append(Spacer(1, 20))
-        
-        # Booking details
-        elements.append(Paragraph("Detail Booking", styles['Heading3']))
-        booking_data = [
-            ['Tanggal Check-In:', room.checkin_time.strftime('%Y-%m-%d %H:%M')],
-            ['Jumlah Malam:', str(room.nights)],
-            ['Harga per malam:', f'Rp{room.price:,.2f}'],
-            ['Total:', f'Rp{(room.price * room.nights):,.2f}']
-        ]
-        
-        if guest_details['special_requests']:
-            booking_data.append(['Request Tambahan:', guest_details['special_requests']])
-        
-        t = Table(booking_data, colWidths=[2*inch, 4*inch])
-        t.setStyle(TableStyle([
-            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-            ('FONTSIZE', (0,0), (-1,-1), 10),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 12),
-            ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
         ]))
         elements.append(t)
         
         # Build PDF
         doc.build(elements)
-        messagebox.showinfo("Faktur Sudah dibuat",
-                          f"Faktur sudah disave {filename}")
+        messagebox.showinfo("Faktur Generated", f"Faktur telah disimpan di {filename}")
 
     def clear_content(self):
         for widget in self.content_frame.winfo_children():
